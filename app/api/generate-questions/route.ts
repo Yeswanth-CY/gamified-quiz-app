@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 
 // Use the provided API key from environment variables
 const API_KEY = process.env.GEMINI_API_KEY || ""
-const genAI = new GoogleGenerativeAI(API_KEY)
 
 // Use gemini-1.5-flash as requested
 const MODEL_NAME = "gemini-1.5-flash"
@@ -15,8 +14,11 @@ export async function POST(request: Request) {
     // Check if API key is available
     if (!API_KEY) {
       console.error("Gemini API key is missing. Using fallback questions.")
-      const fallbackQuestions = generateFallbackQuestions(topics, difficulty, count)
-      return NextResponse.json(fallbackQuestions)
+      return NextResponse.json({
+        questions: generateFallbackQuestions(topics, difficulty, count),
+        source: "fallback",
+        reason: "missing_api_key",
+      })
     }
 
     const prompt = `
@@ -46,22 +48,26 @@ export async function POST(request: Request) {
       Only return the JSON array, nothing else.
     `
 
-    console.log(`Attempting to use model: ${MODEL_NAME} with API key: ${API_KEY ? "Available" : "Not available"}`)
+    console.log(`Attempting to use model: ${MODEL_NAME}`)
 
     try {
+      const genAI = new GoogleGenerativeAI(API_KEY)
       const model = genAI.getGenerativeModel({ model: MODEL_NAME })
 
       const result = await model.generateContent(prompt)
       const text = result.response.text()
 
       console.log("API Response received, length:", text.length)
-      console.log("First 100 chars of response:", text.substring(0, 100))
 
       // Extract JSON from the response
       const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s)
       if (!jsonMatch) {
-        console.error("Failed to parse questions from API response. Full response:", text)
-        return NextResponse.json(generateFallbackQuestions(topics, difficulty, count))
+        console.error("Failed to parse questions from API response")
+        return NextResponse.json({
+          questions: generateFallbackQuestions(topics, difficulty, count),
+          source: "fallback",
+          reason: "parse_error",
+        })
       }
 
       const jsonStr = jsonMatch[0]
@@ -76,33 +82,41 @@ export async function POST(request: Request) {
           fromAPI: true,
         }))
 
-        return NextResponse.json(questionsWithSource)
+        return NextResponse.json({
+          questions: questionsWithSource,
+          source: "api",
+          reason: "success",
+        })
       } catch (parseError) {
-        console.error("JSON parse error:", parseError, "JSON string:", jsonStr)
-        return NextResponse.json(generateFallbackQuestions(topics, difficulty, count))
+        console.error("JSON parse error:", parseError)
+        return NextResponse.json({
+          questions: generateFallbackQuestions(topics, difficulty, count),
+          source: "fallback",
+          reason: "json_parse_error",
+        })
       }
     } catch (modelError) {
       console.error(`Error with model ${MODEL_NAME}:`, modelError)
-      return NextResponse.json(generateFallbackQuestions(topics, difficulty, count))
+
+      // Check specifically for expired API key
+      const errorMessage = modelError.toString()
+      const isExpiredKey = errorMessage.includes("API key expired") || errorMessage.includes("API_KEY_INVALID")
+
+      return NextResponse.json({
+        questions: generateFallbackQuestions(topics, difficulty, count),
+        source: "fallback",
+        reason: isExpiredKey ? "expired_api_key" : "model_error",
+        errorDetails: isExpiredKey ? "Your API key has expired. Please generate a new one." : errorMessage,
+      })
     }
   } catch (error) {
     console.error(`General error:`, error)
 
-    // Log more details about the error
-    if (error instanceof Error) {
-      console.error("Error name:", error.name)
-      console.error("Error message:", error.message)
-      console.error("Error stack:", error.stack)
-    }
-
-    try {
-      const { topics, difficulty, count } = await request.json()
-      const fallbackQuestions = generateFallbackQuestions(topics, difficulty, count)
-      return NextResponse.json(fallbackQuestions)
-    } catch (fallbackError) {
-      // If we can't even parse the request, return some generic questions
-      return NextResponse.json(generateFallbackQuestions("programming", "beginner", 5))
-    }
+    return NextResponse.json({
+      questions: generateFallbackQuestions("programming", "beginner", 5),
+      source: "fallback",
+      reason: "general_error",
+    })
   }
 }
 

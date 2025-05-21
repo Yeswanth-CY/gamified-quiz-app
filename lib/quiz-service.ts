@@ -186,6 +186,8 @@ export async function getLeaderboard(): Promise<QuizResult[]> {
 
 export async function generateQuestions(topics: string, difficulty: string, count: number) {
   try {
+    console.log("Generating questions for topics:", topics, "difficulty:", difficulty, "count:", count)
+
     const response = await fetch("/api/generate-questions", {
       method: "POST",
       headers: {
@@ -195,14 +197,34 @@ export async function generateQuestions(topics: string, difficulty: string, coun
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || "Failed to generate questions")
+      console.error("Error response from generate-questions API:", response.status, response.statusText)
+      throw new Error(`Failed to generate questions: ${response.statusText}`)
     }
 
-    return await response.json()
+    const data = await response.json()
+
+    // Check if we're using the new response format
+    if (data.questions && Array.isArray(data.questions)) {
+      console.log(`Generated ${data.questions.length} questions from source: ${data.source}`)
+
+      // If there's an API key issue, log it but continue with fallback questions
+      if (data.reason === "expired_api_key") {
+        console.warn("API key issue detected:", data.errorDetails)
+      }
+
+      return data.questions
+    }
+
+    // Handle the old response format for backward compatibility
+    if (Array.isArray(data)) {
+      console.log(`Generated ${data.length} questions (legacy format)`)
+      return data
+    }
+
+    throw new Error("Invalid response format from questions API")
   } catch (error) {
     console.error("Error generating questions:", error)
-    throw new Error("Failed to generate questions")
+    throw new Error("Failed to generate questions. Please try again.")
   }
 }
 
