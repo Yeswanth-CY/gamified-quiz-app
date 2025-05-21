@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Slider } from "@/components/ui/slider"
-import { Gamepad2, Trophy, Clock, Zap, Brain, Swords, Shield, Sparkles } from "lucide-react"
-import { motion } from "framer-motion"
-import { ApiStatus } from "@/components/api-status"
+import { Gamepad2, Trophy, Clock } from "lucide-react"
 
 export default function QuizSetup() {
   const router = useRouter()
@@ -17,14 +16,6 @@ export default function QuizSetup() {
   const [difficulty, setDifficulty] = useState("beginner")
   const [questionCount, setQuestionCount] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedAvatar, setSelectedAvatar] = useState(0)
-
-  const avatars = [
-    { icon: <Brain className="h-8 w-8" />, color: "bg-purple-100 text-purple-600" },
-    { icon: <Swords className="h-8 w-8" />, color: "bg-red-100 text-red-600" },
-    { icon: <Shield className="h-8 w-8" />, color: "bg-blue-100 text-blue-600" },
-    { icon: <Sparkles className="h-8 w-8" />, color: "bg-amber-100 text-amber-600" },
-  ]
 
   const handleStartQuiz = async () => {
     if (!topics.trim()) return
@@ -41,229 +32,107 @@ export default function QuizSetup() {
   }
 
   return (
-    <>
-      <div className="mb-4">
-        <ApiStatus />
-      </div>
-      <Card className="w-full shadow-lg border-purple-200 overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-purple-700 to-indigo-600 text-white">
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            <Gamepad2 className="h-6 w-6" />
-            Quest Setup
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6 pb-2">
-          <div className="space-y-6">
-            <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-2"
+    <Card className="w-full shadow-lg border-purple-200">
+      <CardHeader className="bg-purple-700 text-white rounded-t-lg">
+        <CardTitle className="flex items-center gap-2 text-2xl">
+          <Gamepad2 className="h-6 w-6" />
+          Quiz Setup
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6 pb-2">
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="topics">Topics (comma separated)</Label>
+            <Input
+              id="topics"
+              placeholder="e.g. Python, Java, SQL"
+              value={topics}
+              onChange={(e) => setTopics(e.target.value)}
+              className="border-purple-200 focus:border-purple-400"
+            />
+            <p className="text-sm text-gray-500">Enter programming languages or topics separated by commas</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Difficulty Level</Label>
+            <RadioGroup
+              value={difficulty}
+              onValueChange={setDifficulty}
+              className="flex flex-col space-y-1 sm:flex-row sm:space-y-0 sm:space-x-4"
             >
-              <Label htmlFor="topics" className="text-lg font-medium flex items-center gap-2">
-                <Brain className="h-5 w-5 text-purple-600" />
-                Topics
-              </Label>
-              <Input
-                id="topics"
-                placeholder="e.g. Python, Java, SQL"
-                value={topics}
-                onChange={(e) => setTopics(e.target.value)}
-                className="border-purple-200 focus:border-purple-400 text-lg p-6"
-              />
-              <p className="text-sm text-gray-500">Enter programming languages or topics separated by commas</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="space-y-2"
-            >
-              <Label className="text-lg font-medium flex items-center gap-2">
-                <Swords className="h-5 w-5 text-purple-600" />
-                Difficulty Level
-              </Label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                <div
-                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                    difficulty === "beginner"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-green-200 hover:bg-green-50"
-                  }`}
-                  onClick={() => setDifficulty("beginner")}
-                >
-                  <div className="flex items-center">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        difficulty === "beginner" ? "bg-green-100" : "bg-gray-100"
-                      }`}
-                    >
-                      <Shield className={`h-6 w-6 ${difficulty === "beginner" ? "text-green-600" : "text-gray-400"}`} />
-                    </div>
-                    <div className="ml-3">
-                      <h3 className={`font-medium ${difficulty === "beginner" ? "text-green-800" : "text-gray-700"}`}>
-                        Beginner
-                      </h3>
-                      <p className="text-xs text-gray-500">Basic concepts</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                    difficulty === "intermediate"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-200 hover:bg-blue-50"
-                  }`}
-                  onClick={() => setDifficulty("intermediate")}
-                >
-                  <div className="flex items-center">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        difficulty === "intermediate" ? "bg-blue-100" : "bg-gray-100"
-                      }`}
-                    >
-                      <Swords
-                        className={`h-6 w-6 ${difficulty === "intermediate" ? "text-blue-600" : "text-gray-400"}`}
-                      />
-                    </div>
-                    <div className="ml-3">
-                      <h3
-                        className={`font-medium ${difficulty === "intermediate" ? "text-blue-800" : "text-gray-700"}`}
-                      >
-                        Intermediate
-                      </h3>
-                      <p className="text-xs text-gray-500">Advanced concepts</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                    difficulty === "advanced"
-                      ? "border-purple-500 bg-purple-50"
-                      : "border-gray-200 hover:border-purple-200 hover:bg-purple-50"
-                  }`}
-                  onClick={() => setDifficulty("advanced")}
-                >
-                  <div className="flex items-center">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        difficulty === "advanced" ? "bg-purple-100" : "bg-gray-100"
-                      }`}
-                    >
-                      <Sparkles
-                        className={`h-6 w-6 ${difficulty === "advanced" ? "text-purple-600" : "text-gray-400"}`}
-                      />
-                    </div>
-                    <div className="ml-3">
-                      <h3 className={`font-medium ${difficulty === "advanced" ? "text-purple-800" : "text-gray-700"}`}>
-                        Advanced
-                      </h3>
-                      <p className="text-xs text-gray-500">Expert challenges</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-              className="space-y-2"
-            >
-              <div className="flex justify-between">
-                <Label className="text-lg font-medium flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-purple-600" />
-                  Number of Questions: {questionCount}
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="beginner" id="beginner" />
+                <Label htmlFor="beginner" className="cursor-pointer">
+                  Beginner
                 </Label>
               </div>
-              <Slider
-                value={[questionCount]}
-                min={3}
-                max={10}
-                step={1}
-                onValueChange={(value) => setQuestionCount(value[0])}
-                className="py-4"
-              />
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>3</span>
-                <span>10</span>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="intermediate" id="intermediate" />
+                <Label htmlFor="intermediate" className="cursor-pointer">
+                  Intermediate
+                </Label>
               </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.3 }}
-              className="space-y-2"
-            >
-              <Label className="text-lg font-medium flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-purple-600" />
-                Choose Your Avatar
-              </Label>
-              <div className="flex flex-wrap gap-3 justify-center pt-2">
-                {avatars.map((avatar, index) => (
-                  <div
-                    key={index}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center cursor-pointer transition-all transform hover:scale-110 ${
-                      selectedAvatar === index
-                        ? `${avatar.color} ring-2 ring-offset-2 ring-purple-500`
-                        : "bg-gray-100 text-gray-400"
-                    }`}
-                    onClick={() => setSelectedAvatar(index)}
-                  >
-                    {avatar.icon}
-                  </div>
-                ))}
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="advanced" id="advanced" />
+                <Label htmlFor="advanced" className="cursor-pointer">
+                  Advanced
+                </Label>
               </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.4 }}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-            >
-              <div className="flex items-center p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg shadow-sm">
-                <Clock className="h-10 w-10 text-purple-600 mr-3" />
-                <div>
-                  <h3 className="font-medium text-purple-800">Timed Challenge</h3>
-                  <p className="text-sm text-purple-600">Race against the clock for bonus XP</p>
-                </div>
-              </div>
-              <div className="flex items-center p-4 bg-gradient-to-r from-amber-50 to-amber-100 rounded-lg shadow-sm">
-                <Trophy className="h-10 w-10 text-amber-600 mr-3" />
-                <div>
-                  <h3 className="font-medium text-amber-800">Leaderboard Ranking</h3>
-                  <p className="text-sm text-amber-600">Compete for the top spot</p>
-                </div>
-              </div>
-            </motion.div>
+            </RadioGroup>
           </div>
-        </CardContent>
-        <CardFooter className="flex justify-end pt-2 p-6 bg-gray-50">
-          <Button
-            onClick={handleStartQuiz}
-            disabled={!topics.trim() || isLoading}
-            className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white px-8 py-6 text-lg"
-          >
-            {isLoading ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Loading...
-              </>
-            ) : (
-              <>
-                <Gamepad2 className="h-5 w-5 mr-2" />
-                Start Quest
-              </>
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
-    </>
+
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <Label>Number of Questions: {questionCount}</Label>
+            </div>
+            <Slider
+              value={[questionCount]}
+              min={3}
+              max={10}
+              step={1}
+              onValueChange={(value) => setQuestionCount(value[0])}
+              className="py-4"
+            />
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>3</span>
+              <span>10</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center p-3 bg-purple-50 rounded-lg">
+              <Clock className="h-5 w-5 text-purple-600 mr-2" />
+              <div>
+                <h3 className="font-medium text-sm">Timed Challenge</h3>
+                <p className="text-xs text-gray-500">Race against the clock for bonus XP</p>
+              </div>
+            </div>
+            <div className="flex items-center p-3 bg-purple-50 rounded-lg">
+              <Trophy className="h-5 w-5 text-purple-600 mr-2" />
+              <div>
+                <h3 className="font-medium text-sm">Leaderboard Ranking</h3>
+                <p className="text-xs text-gray-500">Compete for the top spot</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-end pt-2">
+        <Button
+          onClick={handleStartQuiz}
+          disabled={!topics.trim() || isLoading}
+          className="bg-purple-700 hover:bg-purple-800"
+        >
+          {isLoading ? (
+            <>
+              <span className="animate-spin mr-2">⟳</span>
+              Loading...
+            </>
+          ) : (
+            "Start Quiz"
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }
