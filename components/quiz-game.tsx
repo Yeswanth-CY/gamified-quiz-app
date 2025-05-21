@@ -635,7 +635,13 @@ export function QuizGame({
       {usingFallback && (
         <div className="p-3 bg-amber-50 rounded-lg flex items-start">
           <Info className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-700">Dont copy</p>
+          <div>
+            <p className="text-sm font-medium text-amber-700">Using offline question bank</p>
+            <p className="text-xs text-amber-600">
+              We're currently using our built-in question database because we couldn't connect to the AI service. The
+              questions are still high quality, but less customized to your specific topics.
+            </p>
+          </div>
         </div>
       )}
 

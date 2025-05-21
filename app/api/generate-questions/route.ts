@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { NextResponse } from "next/server"
 
-// Use the provided API key
-const API_KEY = "AIzaSyB1vp1qK2Jr_-erD4iqVEa6gd9M2zK1AG8"
+// Use the provided API key from environment variables
+const API_KEY = process.env.GEMINI_API_KEY || ""
 const genAI = new GoogleGenerativeAI(API_KEY)
 
 // Use gemini-1.5-flash as requested
@@ -11,6 +11,13 @@ const MODEL_NAME = "gemini-1.5-flash"
 export async function POST(request: Request) {
   try {
     const { topics, difficulty, count } = await request.json()
+
+    // Check if API key is available
+    if (!API_KEY) {
+      console.error("Gemini API key is missing. Using fallback questions.")
+      const fallbackQuestions = generateFallbackQuestions(topics, difficulty, count)
+      return NextResponse.json(fallbackQuestions)
+    }
 
     const prompt = `
       Generate ${count} multiple-choice quiz questions about ${topics} at a ${difficulty} level.
@@ -39,48 +46,47 @@ export async function POST(request: Request) {
       Only return the JSON array, nothing else.
     `
 
-    console.log(`Attempting to use model: ${MODEL_NAME}`)
+    console.log(`Attempting to use model: ${MODEL_NAME} with API key: ${API_KEY ? "Available" : "Not available"}`)
 
     try {
-      // Log available models to help diagnose issues
-      console.log("Available models:", Object.keys(genAI))
-    } catch (e) {
-      console.log("Could not list models:", e)
-    }
+      const model = genAI.getGenerativeModel({ model: MODEL_NAME })
 
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME })
+      const result = await model.generateContent(prompt)
+      const text = result.response.text()
 
-    // Log model details to help diagnose issues
-    console.log("Model configuration:", {
-      modelName: MODEL_NAME,
-      apiKey: API_KEY ? "API key provided" : "No API key provided",
-    })
+      console.log("API Response received, length:", text.length)
+      console.log("First 100 chars of response:", text.substring(0, 100))
 
-    const result = await model.generateContent(prompt)
-    const text = result.response.text()
+      // Extract JSON from the response
+      const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s)
+      if (!jsonMatch) {
+        console.error("Failed to parse questions from API response. Full response:", text)
+        return NextResponse.json(generateFallbackQuestions(topics, difficulty, count))
+      }
 
-    console.log("API Response received, length:", text.length)
-    console.log("First 100 chars of response:", text.substring(0, 100))
+      const jsonStr = jsonMatch[0]
 
-    // Extract JSON from the response
-    const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s)
-    if (!jsonMatch) {
-      console.error("Failed to parse questions from API response. Full response:", text)
-      return NextResponse.json({ error: "Failed to parse questions from API response" }, { status: 500 })
-    }
+      try {
+        const questions = JSON.parse(jsonStr)
+        console.log(`Successfully generated ${questions.length} questions using model: ${MODEL_NAME}`)
 
-    const jsonStr = jsonMatch[0]
+        // Add a flag to indicate these are from the API
+        const questionsWithSource = questions.map((q) => ({
+          ...q,
+          fromAPI: true,
+        }))
 
-    try {
-      const questions = JSON.parse(jsonStr)
-      console.log(`Successfully generated ${questions.length} questions using model: ${MODEL_NAME}`)
-      return NextResponse.json(questions)
-    } catch (parseError) {
-      console.error("JSON parse error:", parseError, "JSON string:", jsonStr)
-      throw new Error("Failed to parse JSON response")
+        return NextResponse.json(questionsWithSource)
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError, "JSON string:", jsonStr)
+        return NextResponse.json(generateFallbackQuestions(topics, difficulty, count))
+      }
+    } catch (modelError) {
+      console.error(`Error with model ${MODEL_NAME}:`, modelError)
+      return NextResponse.json(generateFallbackQuestions(topics, difficulty, count))
     }
   } catch (error) {
-    console.error(`Error with model ${MODEL_NAME}:`, error)
+    console.error(`General error:`, error)
 
     // Log more details about the error
     if (error instanceof Error) {
@@ -89,18 +95,21 @@ export async function POST(request: Request) {
       console.error("Error stack:", error.stack)
     }
 
-    // If we can't use the API, generate some hardcoded questions as a fallback
-    const { topics, difficulty, count } = await request.json()
-    const fallbackQuestions = generateFallbackQuestions(topics, difficulty, count)
-
-    // Log the error but return fallback questions
-    console.log("Using fallback questions due to API error")
-    return NextResponse.json(fallbackQuestions)
+    try {
+      const { topics, difficulty, count } = await request.json()
+      const fallbackQuestions = generateFallbackQuestions(topics, difficulty, count)
+      return NextResponse.json(fallbackQuestions)
+    } catch (fallbackError) {
+      // If we can't even parse the request, return some generic questions
+      return NextResponse.json(generateFallbackQuestions("programming", "beginner", 5))
+    }
   }
 }
 
-// Fallback function to generate questions without the API
+// Enhanced fallback function to generate questions without the API
 function generateFallbackQuestions(topics: string, difficulty: string, count: number) {
+  console.log(`Using fallback questions for topics: ${topics}, difficulty: ${difficulty}, count: ${count}`)
+
   const topicsList = topics.split(",").map((t) => t.trim().toLowerCase())
 
   // Basic set of questions for common programming topics
@@ -129,6 +138,18 @@ function generateFallbackQuestions(topics: string, difficulty: string, count: nu
         ],
         correctAnswer: "Returns the length of an object",
       },
+      {
+        id: "4",
+        question: "How do you create a list in Python?",
+        options: ["list = (1, 2, 3)", "list = [1, 2, 3]", "list = {1, 2, 3}", "list = <1, 2, 3>"],
+        correctAnswer: "list = [1, 2, 3]",
+      },
+      {
+        id: "5",
+        question: "Which method is used to add an element at the end of a list in Python?",
+        options: ["list.add()", "list.append()", "list.insert()", "list.extend()"],
+        correctAnswer: "list.append()",
+      },
     ],
     java: [
       {
@@ -148,6 +169,50 @@ function generateFallbackQuestions(topics: string, difficulty: string, count: nu
         question: "Which of the following is not a primitive data type in Java?",
         options: ["int", "boolean", "String", "char"],
         correctAnswer: "String",
+      },
+      {
+        id: "4",
+        question: "How do you declare a constant variable in Java?",
+        options: ["const int x = 10;", "final int x = 10;", "static int x = 10;", "constant int x = 10;"],
+        correctAnswer: "final int x = 10;",
+      },
+      {
+        id: "5",
+        question: "Which keyword is used for inheritance in Java?",
+        options: ["extends", "implements", "inherits", "using"],
+        correctAnswer: "extends",
+      },
+    ],
+    javascript: [
+      {
+        id: "1",
+        question: "Which function is used to parse a string to an integer in JavaScript?",
+        options: ["Integer.parse()", "parseInteger()", "parseInt()", "toInt()"],
+        correctAnswer: "parseInt()",
+      },
+      {
+        id: "2",
+        question: "What will '2' + 2 evaluate to in JavaScript?",
+        options: ["4", "22", "TypeError", "NaN"],
+        correctAnswer: "22",
+      },
+      {
+        id: "3",
+        question: "Which method is used to add elements to the end of an array in JavaScript?",
+        options: ["push()", "append()", "add()", "insert()"],
+        correctAnswer: "push()",
+      },
+      {
+        id: "4",
+        question: "How do you declare a variable in modern JavaScript?",
+        options: ["var x = 5;", "let x = 5;", "const x = 5;", "Both B and C are correct"],
+        correctAnswer: "Both B and C are correct",
+      },
+      {
+        id: "5",
+        question: "Which of the following is not a JavaScript framework or library?",
+        options: ["React", "Angular", "Django", "Vue"],
+        correctAnswer: "Django",
       },
     ],
     sql: [
@@ -169,25 +234,86 @@ function generateFallbackQuestions(topics: string, difficulty: string, count: nu
         options: ["SAVE", "MODIFY", "UPDATE", "CHANGE"],
         correctAnswer: "UPDATE",
       },
+      {
+        id: "4",
+        question: "Which SQL statement is used to delete data from a database?",
+        options: ["REMOVE", "DELETE", "CLEAR", "DROP"],
+        correctAnswer: "DELETE",
+      },
+      {
+        id: "5",
+        question: "Which SQL statement is used to create a new table?",
+        options: ["CREATE TABLE", "NEW TABLE", "ADD TABLE", "INSERT TABLE"],
+        correctAnswer: "CREATE TABLE",
+      },
     ],
-    javascript: [
+    html: [
       {
         id: "1",
-        question: "Which function is used to parse a string to an integer in JavaScript?",
-        options: ["Integer.parse()", "parseInteger()", "parseInt()", "toInt()"],
-        correctAnswer: "parseInt()",
+        question: "What does HTML stand for?",
+        options: [
+          "Hyper Text Markup Language",
+          "High Tech Modern Language",
+          "Hyper Transfer Markup Language",
+          "Hyper Text Modern Links",
+        ],
+        correctAnswer: "Hyper Text Markup Language",
       },
       {
         id: "2",
-        question: "What will '2' + 2 evaluate to in JavaScript?",
-        options: ["4", "22", "TypeError", "NaN"],
-        correctAnswer: "22",
+        question: "Which tag is used to create a hyperlink in HTML?",
+        options: ["<link>", "<a>", "<href>", "<url>"],
+        correctAnswer: "<a>",
       },
       {
         id: "3",
-        question: "Which method is used to add elements to the end of an array in JavaScript?",
-        options: ["push()", "append()", "add()", "insert()"],
-        correctAnswer: "push()",
+        question: "Which HTML element is used to define an unordered list?",
+        options: ["<ol>", "<list>", "<ul>", "<dl>"],
+        correctAnswer: "<ul>",
+      },
+      {
+        id: "4",
+        question: "Which attribute is used to specify the URL of the linked resource?",
+        options: ["src", "link", "href", "url"],
+        correctAnswer: "href",
+      },
+      {
+        id: "5",
+        question: "Which HTML tag is used to define a table?",
+        options: ["<table>", "<tab>", "<tbl>", "<grid>"],
+        correctAnswer: "<table>",
+      },
+    ],
+    css: [
+      {
+        id: "1",
+        question: "What does CSS stand for?",
+        options: ["Creative Style Sheets", "Cascading Style Sheets", "Computer Style Sheets", "Colorful Style Sheets"],
+        correctAnswer: "Cascading Style Sheets",
+      },
+      {
+        id: "2",
+        question: "Which property is used to change the background color?",
+        options: ["color", "bgcolor", "background-color", "background"],
+        correctAnswer: "background-color",
+      },
+      {
+        id: "3",
+        question: "How do you select an element with id 'demo'?",
+        options: [".demo", "#demo", "demo", "*demo"],
+        correctAnswer: "#demo",
+      },
+      {
+        id: "4",
+        question: "Which CSS property controls the text size?",
+        options: ["text-size", "font-style", "font-size", "text-style"],
+        correctAnswer: "font-size",
+      },
+      {
+        id: "5",
+        question: "How do you make text bold in CSS?",
+        options: ["font-weight: bold;", "style: bold;", "text-style: bold;", "font: bold;"],
+        correctAnswer: "font-weight: bold;",
       },
     ],
     general: [
@@ -213,6 +339,28 @@ function generateFallbackQuestions(topics: string, difficulty: string, count: nu
         question: "What is the time complexity of a binary search algorithm?",
         options: ["O(n)", "O(n²)", "O(log n)", "O(n log n)"],
         correctAnswer: "O(log n)",
+      },
+      {
+        id: "4",
+        question: "Which of the following is not a programming paradigm?",
+        options: [
+          "Object-Oriented Programming",
+          "Functional Programming",
+          "Procedural Programming",
+          "Sequential Programming",
+        ],
+        correctAnswer: "Sequential Programming",
+      },
+      {
+        id: "5",
+        question: "What is the purpose of version control systems like Git?",
+        options: [
+          "To compile code faster",
+          "To track changes in source code over time",
+          "To automatically fix bugs in code",
+          "To optimize code execution",
+        ],
+        correctAnswer: "To track changes in source code over time",
       },
     ],
   }
