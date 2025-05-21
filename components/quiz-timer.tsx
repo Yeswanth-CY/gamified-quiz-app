@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Clock } from "lucide-react"
+import { motion } from "framer-motion"
 
 export function QuizTimer({
   isRunning,
@@ -13,12 +14,19 @@ export function QuizTimer({
   const [seconds, setSeconds] = useState(0)
   // Use a ref to track seconds to avoid calling onTimeUpdate during render
   const secondsRef = useRef(seconds)
+  const [isWarning, setIsWarning] = useState(false)
 
   // Update the ref when seconds change
   useEffect(() => {
     secondsRef.current = seconds
     // Only call onTimeUpdate from an effect, not during render
     onTimeUpdate(seconds)
+
+    // Add warning animation when time reaches certain thresholds
+    if (seconds > 0 && seconds % 60 === 0) {
+      setIsWarning(true)
+      setTimeout(() => setIsWarning(false), 1000)
+    }
   }, [seconds, onTimeUpdate])
 
   useEffect(() => {
@@ -39,9 +47,19 @@ export function QuizTimer({
   const remainingSeconds = seconds % 60
 
   return (
-    <div className="flex items-center bg-purple-100 px-3 py-1 rounded-full text-purple-800 text-sm font-medium">
+    <motion.div
+      animate={isWarning ? { scale: [1, 1.1, 1] } : {}}
+      transition={{ duration: 0.5 }}
+      className={`flex items-center ${
+        minutes >= 5
+          ? "bg-red-100 text-red-800"
+          : minutes >= 3
+            ? "bg-amber-100 text-amber-800"
+            : "bg-purple-100 text-purple-800"
+      } px-3 py-1 rounded-full text-sm font-medium`}
+    >
       <Clock className="h-4 w-4 mr-1" />
       {String(minutes).padStart(2, "0")}:{String(remainingSeconds).padStart(2, "0")}
-    </div>
+    </motion.div>
   )
 }

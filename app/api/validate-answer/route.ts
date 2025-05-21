@@ -1,20 +1,42 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { NextResponse } from "next/server"
 
-// Initialize the Google Generative AI with the API key
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
+// Use the provided API key from environment variables
+const API_KEY = process.env.GEMINI_API_KEY || ""
+const genAI = new GoogleGenerativeAI(API_KEY)
 
-// Try to use gemini-1.5-flash which is likely the correct name
+// Use gemini-1.5-flash as requested
 const MODEL_NAME = "gemini-1.5-flash"
 
 export async function POST(request: Request) {
   try {
     const { question, userAnswer, difficulty } = await request.json()
 
+    // Check if this is a fallback question with a known correctAnswer
+    if (question.correctAnswer || question.fromFallback) {
+      const isCorrect = userAnswer === question.correctAnswer
+      return NextResponse.json({
+        isCorrect,
+        feedback: isCorrect
+          ? "Correct! Your answer matches our solution."
+          : `Incorrect. The correct answer is: ${question.correctAnswer}`,
+      })
+    }
+
+    // Check if API key is available
+    if (!API_KEY) {
+      console.error("Gemini API key is missing. Using simple validation.")
+      // Simple fallback validation - just assume it's correct
+      return NextResponse.json({
+        isCorrect: true,
+        feedback: "We couldn't validate your answer due to technical issues, but we'll count it as correct.",
+      })
+    }
+
     const prompt = `
       Evaluate if the following answer is correct for the given question.
       
-      Question: ${question}
+      Question: ${question.question || question}
       User's answer: ${userAnswer}
       Difficulty level: ${difficulty}
       
@@ -30,45 +52,60 @@ export async function POST(request: Request) {
       Only return the JSON object, nothing else.
     `
 
-    console.log(`Using model: ${MODEL_NAME}`)
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME })
-    const result = await model.generateContent(prompt)
-    const text = result.response.text()
+    console.log(`Attempting to use model: ${MODEL_NAME}`)
 
-    // Extract JSON from the response
-    const jsonMatch = text.match(/\{.*\}/s)
-    if (!jsonMatch) {
-      return NextResponse.json({ error: "Failed to parse validation from API response" }, { status: 500 })
-    }
-
-    const jsonStr = jsonMatch[0]
-    const validation = JSON.parse(jsonStr)
-
-    return NextResponse.json(validation)
-  } catch (error) {
-    console.error(`Error with model ${MODEL_NAME}:`, error)
-
-    // If the API fails, do a simple string comparison to determine if the answer is correct
-    // This is a very basic fallback and won't work well for complex questions
     try {
-      const { question, userAnswer } = await request.json()
+      const model = genAI.getGenerativeModel({ model: MODEL_NAME })
+      const result = await model.generateContent(prompt)
+      const text = result.response.text()
 
-      // Simple fallback validation - just check if the strings match exactly
-      // In a real app, you'd want a more sophisticated approach
-      const isCorrect = userAnswer.trim().toLowerCase() === question.correctAnswer?.trim().toLowerCase()
+      console.log("API Response received, length:", text.length)
+      console.log("First 100 chars of response:", text.substring(0, 100))
 
-      return NextResponse.json({
-        isCorrect,
-        feedback: isCorrect
-          ? "Your answer appears to be correct."
-          : "Your answer appears to be incorrect. Please check your response.",
-      })
-    } catch (fallbackError) {
-      // If even our fallback fails, just give the user the benefit of the doubt
+      // Extract JSON from the response
+      const jsonMatch = text.match(/\{.*\}/s)
+      if (!jsonMatch) {
+        console.error("Failed to parse validation from API response. Full response:", text)
+        return NextResponse.json({
+          isCorrect: true,
+          feedback: "We couldn't validate your answer due to technical issues, but we'll count it as correct.",
+        })
+      }
+
+      const jsonStr = jsonMatch[0]
+
+      try {
+        const validation = JSON.parse(jsonStr)
+        console.log(`Successfully validated answer using model: ${MODEL_NAME}`)
+        return NextResponse.json(validation)
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError, "JSON string:", jsonStr)
+        return NextResponse.json({
+          isCorrect: true,
+          feedback: "We couldn't validate your answer due to technical issues, but we'll count it as correct.",
+        })
+      }
+    } catch (modelError) {
+      console.error(`Error with model ${MODEL_NAME}:`, modelError)
       return NextResponse.json({
         isCorrect: true,
         feedback: "We couldn't validate your answer due to technical issues, but we'll count it as correct.",
       })
     }
+  } catch (error) {
+    console.error(`General error:`, error)
+
+    // Log more details about the error
+    if (error instanceof Error) {
+      console.error("Error name:", error.name)
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+    }
+
+    // Simple fallback validation - just assume it's correct
+    return NextResponse.json({
+      isCorrect: true,
+      feedback: "We couldn't validate your answer due to technical issues, but we'll count it as correct.",
+    })
   }
 }
